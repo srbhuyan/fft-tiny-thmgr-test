@@ -4,8 +4,8 @@
 #include <complex.h>
 #include <string.h>
 #include <time.h>
-#include <pthread.h>
 #include <unistd.h>
+#include <thpool.h>
 
 #define PI 3.14159265358979323846
 #define MAX_SIZE 8192
@@ -48,6 +48,7 @@ typedef struct {
 
 // Global variables for thread management
 int num_threads;
+threadpool thpool;
 
 // Function to create 2D complex array
 Complex2D* create_complex_2d(int rows, int cols) {
@@ -120,18 +121,16 @@ void fft_1d(cplx* data, int n, int inverse) {
 }
 
 // Thread function for processing rows
-void* process_rows_thread(void* arg) {
+void process_rows_thread(void* arg) {
     RowThreadData* data = (RowThreadData*)arg;
     
     for(int i = data->start_row; i < data->end_row; i++) {
         fft_1d(data->data->data[i], data->cols, data->inverse);
     }
-    
-    return NULL;
 }
 
 // Thread function for processing columns
-void* process_cols_thread(void* arg) {
+void process_cols_thread(void* arg) {
     ColThreadData* data = (ColThreadData*)arg;
     
     // Allocate temporary array for columns
@@ -153,11 +152,10 @@ void* process_cols_thread(void* arg) {
     }
     
     free(temp);
-    return NULL;
 }
 
 // Thread function for frequency domain filtering
-void* apply_filter_thread(void* arg) {
+void apply_filter_thread(void* arg) {
     FilterThreadData* data = (FilterThreadData*)arg;
     int center_row = data->rows / 2;
     int center_col = data->cols / 2;
@@ -174,13 +172,10 @@ void* apply_filter_thread(void* arg) {
             }
         }
     }
-    
-    return NULL;
 }
 
 // Parallel 2D FFT implementation
 void fft_2d_parallel(Complex2D* data, int rows, int cols, int inverse) {
-    pthread_t* threads = (pthread_t*)malloc(num_threads * sizeof(pthread_t));
     
     // Transform rows in parallel
     RowThreadData* row_data = (RowThreadData*)malloc(num_threads * sizeof(RowThreadData));
@@ -197,14 +192,11 @@ void fft_2d_parallel(Complex2D* data, int rows, int cols, int inverse) {
         row_data[t].cols = cols;
         row_data[t].inverse = inverse;
         
-        pthread_create(&threads[t], NULL, process_rows_thread, &row_data[t]);
+        thpool_add_work(thpool, *process_rows_thread, &row_data[t]);
     }
     
-    // Wait for all row threads to complete
-    for(int t = 0; t < num_threads; t++) {
-        pthread_join(threads[t], NULL);
-    }
-    
+    thpool_wait(thpool);
+
     // Transform columns in parallel
     ColThreadData* col_data = (ColThreadData*)malloc(num_threads * sizeof(ColThreadData));
     int cols_per_thread = cols / num_threads;
@@ -220,22 +212,17 @@ void fft_2d_parallel(Complex2D* data, int rows, int cols, int inverse) {
         col_data[t].rows = rows;
         col_data[t].inverse = inverse;
         
-        pthread_create(&threads[t], NULL, process_cols_thread, &col_data[t]);
+        thpool_add_work(thpool, *process_cols_thread, &col_data[t]);
     }
     
-    // Wait for all column threads to complete
-    for(int t = 0; t < num_threads; t++) {
-        pthread_join(threads[t], NULL);
-    }
-    
-    free(threads);
+    thpool_wait(thpool);
+
     free(row_data);
     free(col_data);
 }
 
 // Parallel frequency domain filtering
 void apply_frequency_filter_parallel(Complex2D* data, int rows, int cols, double cutoff) {
-    pthread_t* threads = (pthread_t*)malloc(num_threads * sizeof(pthread_t));
     FilterThreadData* filter_data = (FilterThreadData*)malloc(num_threads * sizeof(FilterThreadData));
     
     int rows_per_thread = rows / num_threads;
@@ -252,15 +239,11 @@ void apply_frequency_filter_parallel(Complex2D* data, int rows, int cols, double
         filter_data[t].cols = cols;
         filter_data[t].cutoff = cutoff;
         
-        pthread_create(&threads[t], NULL, apply_filter_thread, &filter_data[t]);
+        thpool_add_work(thpool, apply_filter_thread, &filter_data[t]);
     }
     
-    // Wait for all filter threads to complete
-    for(int t = 0; t < num_threads; t++) {
-        pthread_join(threads[t], NULL);
-    }
-    
-    free(threads);
+    thpool_wait(thpool);
+
     free(filter_data);
 }
 
@@ -416,6 +399,9 @@ int main(int argc, char * argv[]) {
       printf("Running in serial\n");
     }
 
+    // Init thread pool
+    thpool = thpool_init(num_threads);
+
     // Example usage with 1D signal
     int signal_length = size;
     double* test_signal = (double*)malloc(signal_length * sizeof(double));
@@ -490,6 +476,7 @@ int main(int argc, char * argv[]) {
              ((double)(end - start)) / CLOCKS_PER_SEC);
 
       // Cleanup
+      thpool_destroy(thpool);
       free_complex_2d(test_image_parallel);
     }
 
