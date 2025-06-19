@@ -247,54 +247,6 @@ void apply_frequency_filter_parallel(Complex2D* data, int rows, int cols, double
     free(filter_data);
 }
 
-// Original non-parallel 2D FFT (kept for comparison)
-void fft_2d(Complex2D* data, int rows, int cols, int inverse) {
-    // Allocate temporary array for columns
-    cplx* temp = (cplx*)malloc(rows * sizeof(cplx));
-
-    // Transform rows
-    for(int i = 0; i < rows; i++) {
-        fft_1d(data->data[i], cols, inverse);
-    }
-
-    // Transform columns
-    for(int j = 0; j < cols; j++) {
-        // Copy column to temporary array
-        for(int i = 0; i < rows; i++) {
-            temp[i] = data->data[i][j];
-        }
-
-        // Transform
-        fft_1d(temp, rows, inverse);
-
-        // Copy back
-        for(int i = 0; i < rows; i++) {
-            data->data[i][j] = temp[i];
-        }
-    }
-
-    free(temp);
-}
-
-// Original frequency domain filtering (kept for comparison)
-void apply_frequency_filter(Complex2D* data, int rows, int cols, double cutoff) {
-    int center_row = rows / 2;
-    int center_col = cols / 2;
-
-    for(int i = 0; i < rows; i++) {
-        for(int j = 0; j < cols; j++) {
-            // Calculate distance from center
-            double dist = sqrt(pow(i - center_row, 2) +
-                             pow(j - center_col, 2));
-
-            // Apply low-pass filter
-            if(dist > cutoff) {
-                data->data[i][j] *= exp(-pow(dist - cutoff, 2) / 100.0);
-            }
-        }
-    }
-}
-
 // Signal analysis functions
 void analyze_frequency_components(cplx* data, int n) {
     printf("\nFrequency Components Analysis:\n");
@@ -359,22 +311,10 @@ void process_image_parallel(Complex2D* image, int rows, int cols) {
     fft_2d_parallel(image, rows, cols, 1);
 }
 
-// Original 2D image processing (kept for comparison)
-void process_image(Complex2D* image, int rows, int cols) {
-    // Forward 2D FFT
-    fft_2d(image, rows, cols, 0);
-
-    // Apply frequency domain filter
-    apply_frequency_filter(image, rows, cols, image->rows/4);
-
-    // Inverse 2D FFT
-    fft_2d(image, rows, cols, 1);
-}
-
 int main(int argc, char * argv[]) {
 
     if(argc < 2) {
-        printf("Usage: %s <size> [num_threads] [serial/parallel]\n", argv[0]);
+        printf("Usage: %s <size> [num_threads]\n", argv[0]);
         return 1;
     }
 
@@ -385,18 +325,6 @@ int main(int argc, char * argv[]) {
         num_threads = atoi(argv[2]);
     } else {
         num_threads = sysconf(_SC_NPROCESSORS_ONLN);
-    }
-
-    // Set serial/parallel
-    int parallel = 0;
-    if(argc > 3) {
-        parallel = atoi(argv[3]);
-    }
-
-    if(parallel){
-      printf("Running in parallel using %d threads\n", num_threads);
-    } else {
-      printf("Running in serial\n");
     }
 
     // Init thread pool
@@ -428,57 +356,30 @@ int main(int argc, char * argv[]) {
     // Example usage with 2D image - Serial version
     int image_size = size;
 
-    if(!parallel) {
-      Complex2D* test_image_serial = create_complex_2d(image_size, image_size);
+    // Example usage with 2D image - Parallel version
+    Complex2D* test_image_parallel = create_complex_2d(image_size, image_size);
 
-      // Generate test image (pattern)
-      for(int i = 0; i < image_size; i++) {
-          for(int j = 0; j < image_size; j++) {
-              double x = (double)i / image_size;
-              double y = (double)j / image_size;
-              test_image_serial->data[i][j] = sin(2 * PI * 5 * x) *
+    // Generate test image (pattern) - same as serial
+    for(int i = 0; i < image_size; i++) {
+        for(int j = 0; j < image_size; j++) {
+            double x = (double)i / image_size;
+            double y = (double)j / image_size;
+            test_image_parallel->data[i][j] = sin(2 * PI * 5 * x) *
                                              sin(2 * PI * 5 * y);
-          }
-      }
-
-      // Process 2D image - Serial
-      start = clock();
-      process_image(test_image_serial, image_size, image_size);
-      end = clock();
-
-      printf("2D Image processing time (serial): %f seconds\n",
-             ((double)(end - start)) / CLOCKS_PER_SEC);
-
-      // Cleanup
-      free_complex_2d(test_image_serial);
-
-    } else {
-
-      // Example usage with 2D image - Parallel version
-      Complex2D* test_image_parallel = create_complex_2d(image_size, image_size);
-
-      // Generate test image (pattern) - same as serial
-      for(int i = 0; i < image_size; i++) {
-          for(int j = 0; j < image_size; j++) {
-              double x = (double)i / image_size;
-              double y = (double)j / image_size;
-              test_image_parallel->data[i][j] = sin(2 * PI * 5 * x) *
-                                               sin(2 * PI * 5 * y);
-          }
-      }
-
-      // Process 2D image - Parallel
-      start = clock();
-      process_image_parallel(test_image_parallel, image_size, image_size);
-      end = clock();
-
-      printf("2D Image processing time (parallel): %f seconds\n",
-             ((double)(end - start)) / CLOCKS_PER_SEC);
-
-      // Cleanup
-      thpool_destroy(thpool);
-      free_complex_2d(test_image_parallel);
+        }
     }
+
+    // Process 2D image - Parallel
+    start = clock();
+    process_image_parallel(test_image_parallel, image_size, image_size);
+    end = clock();
+
+    printf("2D Image processing time (parallel): %f seconds\n",
+           ((double)(end - start)) / CLOCKS_PER_SEC);
+
+    // Cleanup
+    thpool_destroy(thpool);
+    free_complex_2d(test_image_parallel);
 
     return 0;
 }
