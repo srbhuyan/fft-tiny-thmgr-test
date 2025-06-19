@@ -375,7 +375,7 @@ int main(int argc, char * argv[]) {
     end = clock();
 
     printf("2D Image processing time (parallel): %f seconds\n",
-           ((double)(end - start)) / CLOCKS_PER_SEC);
+           ((double)(end - start)/num_threads) / CLOCKS_PER_SEC);
 
     // Cleanup
     thpool_destroy(thpool);
