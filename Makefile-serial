@@ -1,7 +1,7 @@
 all: serial
 
 serial:
-	gcc -std=c99 -o main main.c -lm
+	gcc -std=c99 -o main_original main_original.c -lm
 
 clean:
-	rm main
+	rm main_original

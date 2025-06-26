@@ -247,58 +247,6 @@ void apply_frequency_filter_parallel(Complex2D* data, int rows, int cols, double
     free(filter_data);
 }
 
-// Signal analysis functions
-void analyze_frequency_components(cplx* data, int n) {
-    printf("\nFrequency Components Analysis:\n");
-
-    // Find dominant frequencies
-    for(int i = 0; i < n/2; i++) {
-        double magnitude = cabs(data[i]);
-        if(magnitude > THRESHOLD) {
-            double frequency = (double)i / n;
-            printf("Frequency: %.3f, Magnitude: %.3f\n",
-                   frequency, magnitude);
-        }
-    }
-}
-
-// Example of practical usage
-void process_signal(double* input_signal, int signal_length) {
-    // Ensure signal length is power of 2
-    int n = 1;
-    while(n < signal_length) n <<= 1;
-
-    // Allocate and initialize complex array
-    cplx* data = (cplx*)malloc(n * sizeof(cplx));
-    for(int i = 0; i < signal_length; i++) {
-        data[i] = input_signal[i] + 0.0 * I;
-    }
-    for(int i = signal_length; i < n; i++) {
-        data[i] = 0;
-    }
-
-    // Forward FFT
-    fft_1d(data, n, 0);
-
-    // Analyze frequency components
-    analyze_frequency_components(data, n);
-
-    // Apply frequency domain filtering
-    for(int i = n/4; i < 3*n/4; i++) {
-        data[i] *= 0.5; // Attenuate middle frequencies
-    }
-
-    // Inverse FFT
-    fft_1d(data, n, 1);
-
-    // Copy result back
-    for(int i = 0; i < signal_length; i++) {
-        input_signal[i] = creal(data[i]);
-    }
-
-    free(data);
-}
-
 // Parallel 2D image processing
 void process_image_parallel(Complex2D* image, int rows, int cols) {
     // Forward 2D FFT (parallel)
@@ -330,29 +278,6 @@ int main(int argc, char * argv[]) {
     // Init thread pool
     thpool = thpool_init(num_threads);
 
-    // Example usage with 1D signal
-    int signal_length = size;
-    double* test_signal = (double*)malloc(signal_length * sizeof(double));
-
-    // Generate test signal (sum of sinusoids)
-    for(int i = 0; i < signal_length; i++) {
-        double t = (double)i / signal_length;
-        test_signal[i] = sin(2 * PI * 10 * t) +  // 10 Hz component
-                        0.5 * sin(2 * PI * 40 * t) + // 40 Hz component
-                        0.25 * sin(2 * PI * 90 * t); // 90 Hz component
-    }
-
-    // Process 1D signal (not parallelized as it's already fast)
-    clock_t start = clock();
-    process_signal(test_signal, signal_length);
-    clock_t end = clock();
-
-    printf("1D Signal processing time: %f seconds\n",
-           ((double)(end - start)) / CLOCKS_PER_SEC);
-
-    // Cleanup
-    free(test_signal);
-
     // Example usage with 2D image - Serial version
     int image_size = size;
 
@@ -370,9 +295,9 @@ int main(int argc, char * argv[]) {
     }
 
     // Process 2D image - Parallel
-    start = clock();
+    clock_t start = clock();
     process_image_parallel(test_image_parallel, image_size, image_size);
-    end = clock();
+    clock_t end = clock();
 
     printf("2D Image processing time (parallel): %f seconds\n",
            ((double)(end - start)/num_threads) / CLOCKS_PER_SEC);
