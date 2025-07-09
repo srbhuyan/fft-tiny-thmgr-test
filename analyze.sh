@@ -253,7 +253,7 @@ for i in ${core[@]}
 do
   # time
   start=`date +%s.%N`;\
-  curl -D - --header "Content-Type: application/json" --output - --request POST --data '{"id": 1, "lib": "libfft.so", "core": '"$i"', "argv": ["main", '\""$iva_data"\"','\""$i"\"']}' 192.168.1.36:7092/run;\
+  curl -D - --header "Content-Type: application/json" --output - --request POST --data '{"id": 1, "lib": "libfft.so", "core": '"$i"', "argv": ["main", '\""$iva_data"\"','\""$i"\"']}' 192.168.1.36:8092/run;\
   end=`date +%s.%N`;\
   time_parallel+=(`printf '%.8f' $( echo "$end - $start" | bc -l )`);
 
