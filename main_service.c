@@ -296,7 +296,7 @@ void process_image_parallel(Complex2D* image, int rows, int cols) {
     fft_2d_parallel(image, rows, cols, 1);
 }
 
-int main(int argc, char * argv[]) {
+int main_worker(int argc, char * argv[]) {
 
     if(argc < 2) {
         printf("Usage: %s <size> [num_threads]\n", argv[0]);
@@ -315,7 +315,7 @@ int main(int argc, char * argv[]) {
     printf("Image size = %d, cores = %d\n", size, num_threads);
 
     // Init thread pool
-    thpool = thpool_init(num_threads);
+    thpool = thpool_get_shared(num_threads);
 
     // Example usage with 2D image - Serial version
     int image_size = size;
@@ -340,7 +340,6 @@ int main(int argc, char * argv[]) {
            ((double)(end - start)/num_threads) / CLOCKS_PER_SEC);
 
     // Cleanup
-    thpool_destroy(thpool);
     free_complex_2d(test_image_parallel);
 
     return 0;
