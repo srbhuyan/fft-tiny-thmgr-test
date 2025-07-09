@@ -1,0 +1,7 @@
+all: thmgr
+
+thmgr:
+	clang-18 -shared -fPIC -o libfft.so main_service.c
+
+clean:
+	rm libfft.so
