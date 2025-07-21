@@ -249,13 +249,90 @@ energy_parallel=()
 # time - parallel
 progress_bandwidth=10
 
+# Configuration
+POLL_INTERVAL=3    # seconds between polls
+MAX_ATTEMPTS=100   # maximum number of polling attempts
+TIMEOUT=10         # curl timeout in seconds
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Function to log with timestamp
+log() {
+    echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# Condition checking
+poll_api_until_condition() {
+    local url="$1"
+    local condition_field="$2"
+    local condition="$3"
+    local attempt=1
+    local -n response_body_ref=$4
+
+    log "Polling API until condition '${condition}' is found"
+
+    while [ $attempt -le $MAX_ATTEMPTS ]; do
+        log "${YELLOW}Attempt ${attempt}/${MAX_ATTEMPTS}${NC}"
+
+        response=$(curl -s -w "\n%{http_code}" --connect-timeout $TIMEOUT --max-time $TIMEOUT "$url")
+
+        if [ $? -eq 0 ]; then
+            http_code=$(echo "$response" | tail -n1)
+            response_body=$(echo "$response" | sed '$d')
+            response_body_ref="$response_body"
+
+            if [ "$http_code" -eq 200 ]; then
+                log "Response: ${response_body}"
+
+                # Check if condition is met (simple string matching)
+                if [ $(echo "$response_body" | jq $condition_field | tr -d '"') = "$condition" ]; then
+                    log "${GREEN}✓ Condition '${condition}' found!${NC}"
+                    return 0
+                else
+                    log "Condition '${condition}' not found yet"
+                fi
+            else
+                log "${RED}✗ API returned status ${http_code}${NC}"
+            fi
+        else
+            log "${RED}✗ API call failed${NC}"
+        fi
+
+        if [ $attempt -eq $MAX_ATTEMPTS ]; then
+            log "${RED}Maximum attempts reached. Condition not found.${NC}"
+            return 1
+        fi
+
+        sleep $POLL_INTERVAL
+        ((attempt++))
+    done
+}
+
+api="http://192.168.1.36:8092"
+
 for i in ${core[@]}
 do
   # time
-  start=`date +%s.%N`;\
-  curl -D - --header "Content-Type: application/json" --output - --request POST --data '{"id": 1, "lib": "libfft.so", "core": '"$i"', "argv": ["main", '\""$iva_data"\"','\""$i"\"']}' 192.168.1.36:8092/run;\
-  end=`date +%s.%N`;\
-  time_parallel+=(`printf '%.8f' $( echo "$end - $start" | bc -l )`);
+  run_response=$(curl -s -X POST -H "Content-Type: application/json" -d @- $api/run <<EOF
+{
+  "id": 1,
+  "lib": "libfft.so",
+  "core": $i,
+  "argv": ["main", "$iva_data", "$i"]
+}
+EOF
+)
+
+  job_id=$(echo $run_response | jq '.id' | tr -d '"')
+  poll_api_until_condition "$api/job/$job_id" ".data.attributes.status" "complete" response_body
+
+  start=`date -d "$(echo $response_body | jq '.data.attributes.start_time' | tr -d '"')" +%s.%N`
+  end=`date -d "$(echo $response_body | jq '.data.attributes.end_time' | tr -d '"')" +%s.%N`
+  time_parallel+=(`printf '%.8f' $( echo "$end - $start" | bc -l )`)
 
   progress=`echo "scale=1; p=$progress; bw=$progress_bandwidth; l=${#core[@]}; p + (bw/l)" | bc -l`
 

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <thpool.h>
+#include <thmgr.h>
 
 #define PI 3.14159265358979323846
 #define MAX_SIZE 8192
@@ -312,10 +312,19 @@ int main_worker(int argc, char * argv[]) {
         num_threads = sysconf(_SC_NPROCESSORS_ONLN);
     }
 
+    // job id
+    if(argc <= 3) {
+        return 1;
+    }
+
+    // Get thread pool
+    char * jid = argv[3];
+    thpool = thpool_get_shared(jid);
+
     printf("Image size = %d, cores = %d\n", size, num_threads);
 
     // Init thread pool
-    thpool = thpool_get_shared(num_threads);
+    thpool = thpool_get_shared(jid);
 
     // Example usage with 2D image - Serial version
     int image_size = size;
