@@ -2,7 +2,7 @@
 
 usage()
 {
-  echo "Usage: $0 <algorithm> <iva> <iva data> <iva data file> <core count file> <power profile file> <time serial analytics file> <time parallel analytics file> <space serial analytics file> <space parallel analytics file> <power serial analytics file> <power parallel analytics file> <energy serial analytics file> <energy parallel analytics file> <speedup analytics file> <freeup analytics file> <powerup analytics file> <energyup analytics file> <id> <repo> <repo name> <start time> <progress>"
+  echo "Usage: $0 <algorithm> <iva> <iva data> <iva data file> <core count file> <power profile file> <time serial analytics file> <time parallel analytics file> <space serial analytics file> <space parallel analytics file> <power serial analytics file> <power parallel analytics file> <energy serial analytics file> <energy parallel analytics file> <speedup analytics file> <freeup analytics file> <powerup analytics file> <energyup analytics file> <id> <repo> <repo name> <start time> <progress> <thmgr api> <thmgr lib dir>"
   exit 1
 }
 
@@ -55,8 +55,8 @@ call_fit() {
   \"result\":{\"errorCode\":0,\"message\":\"\",\"repo\":\"\"}}" > $analysis_file
 }
 
-if [ "$#" -ne 29 ]; then
-    echo "Invalid number of parameters. Expected:30 Passed:$#"
+if [ "$#" -ne 31 ]; then
+    echo "Invalid number of parameters. Expected:31 Passed:$#"
     usage
 fi
 
@@ -90,6 +90,8 @@ repo=${26}
 repo_name=${27}
 start_time=${28}
 progress=${29}
+thmgr_api=${30}
+thmgr_lib_dir=${31}
 
 serial_measurement=serial.csv
 parallel_measurement=parallel.csv
@@ -151,6 +153,9 @@ algo_orig="$algo"_original
 
 # make - parallel
 make -f Makefile-parallel
+
+# make - thread manager service
+make -f Makefile-thmgr repo_name=$repo_name lib_location=$thmgr_lib_dir
 
 # serial run
 
@@ -312,15 +317,24 @@ poll_api_until_condition() {
     done
 }
 
-api="http://192.168.1.36:8092"
+# lib load
+load_response=$(curl -s -X POST -H "Content-Type: application/json" -d @- $thmgr_api/load <<EOF
+{
+  "repo": "$repo_name"
+}
+EOF
+)
+
+echo "load response = $load_response"
+
+# lib run
 
 for i in ${core[@]}
 do
   # time
-  run_response=$(curl -s -X POST -H "Content-Type: application/json" -d @- $api/run <<EOF
+  run_response=$(curl -s -X POST -H "Content-Type: application/json" -d @- $thmgr_api/run <<EOF
 {
-  "id": 1,
-  "lib": "libfft.so",
+  "repo": "$repo_name",
   "core": $i,
   "argv": ["main", "$iva_data", "$i"]
 }
@@ -328,7 +342,7 @@ EOF
 )
 
   job_id=$(echo $run_response | jq '.id' | tr -d '"')
-  poll_api_until_condition "$api/job/$job_id" ".data.attributes.status" "complete" response_body
+  poll_api_until_condition "$thmgr_api/job/$job_id" ".data.attributes.status" "complete" response_body
 
   start=`date -d "$(echo $response_body | jq '.data.attributes.start_time' | tr -d '"')" +%s.%N`
   end=`date -d "$(echo $response_body | jq '.data.attributes.end_time' | tr -d '"')" +%s.%N`

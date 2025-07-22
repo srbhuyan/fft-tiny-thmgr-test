@@ -1,10 +1,10 @@
 main
 main_original
-libfft.so
 .repoid
 *.zst
 *.csv
 *.pdf
 *.json
+*.so
 !power-profile.csv
 

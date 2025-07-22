@@ -1,7 +1,10 @@
-all: thmgr
+all: copy
+
+copy: thmgr
+	cp lib$(repo_name).so $(lib_location)
 
 thmgr:
-	clang-18 -shared -fPIC -o libfft.so main_service.c
+	clang-18 -shared -fPIC -o lib$(repo_name).so main_service.c
 
 clean:
-	rm libfft.so
+	rm lib$(repo_name).so
