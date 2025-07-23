@@ -278,7 +278,7 @@ poll_api_until_condition() {
     local attempt=1
     local -n response_body_ref=$4
 
-    log "Polling API until condition '${condition}' is found"
+    log "Polling API ${url} until condition '${condition}' is found in '${condition_field}'"
 
     while [ $attempt -le $MAX_ATTEMPTS ]; do
         log "${YELLOW}Attempt ${attempt}/${MAX_ATTEMPTS}${NC}"
