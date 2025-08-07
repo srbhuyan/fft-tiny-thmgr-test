@@ -135,22 +135,6 @@ do
   core+=($i)
 done
 
-# make - serial
-make -f Makefile-serial
-
-# make a copy of original main file
-main_file_extn="${main_file##*.}"
-main_file_noextn="${main_file%.*}"
-main_file_orig="$main_file_noextn"_original."$main_file_extn"
-#cp $main_file $main_file_orig
-
-## make a copy of original execuatble
-algo_orig="$algo"_original
-#mv $algo $algo_orig
-
-# generate TALP parallel code
-#clang -fplugin=$parallel_plugin_so -Xclang -plugin -Xclang $parallel_plugin_name -Xclang -plugin-arg-rew -Xclang -target-function -Xclang -plugin-arg-rew -Xclang $target_fn -Xclang -plugin-arg-rew -Xclang -out-file -Xclang -plugin-arg-rew -Xclang $main_file -Xclang -plugin-arg-rew -Xclang -iva -Xclang -plugin-arg-rew -Xclang $target_fn_iva_name -Xclang -plugin-arg-rew -Xclang -iva-start -Xclang -plugin-arg-rew -Xclang $target_fn_iva_start -Xclang -plugin-arg-rew -Xclang -iva-end -Xclang -plugin-arg-rew -Xclang $target_fn_iva_end -Xclang -plugin-arg-rew -Xclang -argc -Xclang -plugin-arg-rew -Xclang $argc -c $main_file
-
 # generate compile_commands.json
 repo_path="/data/repo-import/$repo_name"
 
@@ -168,10 +152,29 @@ json_output=$(jq -n \
 echo "$json_output" > compile_commands.json
 echo "JSON data written to compile_commands.json"
 
-# generate parallel code for thread manager target
+# Generate parallel analysis
 /usr/bin/clang-18 -g -emit-llvm -S -o main_original.ll main_original.c
 /usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
-/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json main_original.c > main_service.c
+
+# Generate standalone parallel code
+/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main_service.c
+
+# Generate thread manager parallel code
+/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main.c
+
+
+# make - serial
+make -f Makefile-serial
+
+# make a copy of original main file
+main_file_extn="${main_file##*.}"
+main_file_noextn="${main_file%.*}"
+main_file_orig="$main_file_noextn"_original."$main_file_extn"
+#cp $main_file $main_file_orig
+
+## make a copy of original execuatble
+algo_orig="$algo"_original
+#mv $algo $algo_orig
 
 # make - parallel
 make -f Makefile-parallel
