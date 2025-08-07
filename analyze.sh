@@ -157,10 +157,10 @@ echo "JSON data written to compile_commands.json"
 /usr/bin/opt-18 -load-pass-plugin=GanymedeAnalysisPlugin.so -passes="ganymede-analysis" main_original.ll
 
 # Generate standalone parallel code
-/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main_service.c
+/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=standalone main_original.c > main.c
 
 # Generate thread manager parallel code
-/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main.c
+/usr/bin/ganymede-codegen --analysis-file=parallelization_analysis.json --codegen-type=thmgr main_original.c > main_service.c
 
 
 # make - serial
